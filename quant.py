@@ -142,7 +142,7 @@ def make_quant(module, names, bits, groupsize, name=''):
         make_quant(child, names, bits, groupsize, name + '.' + name1 if name != '' else name1)
 
 class QuantLinear(nn.Module): 
-    def __init__(self, bits, groupsize, infeatures, outfeatures, bias, kernel_switch_threshold=128, is_cuda=False):
+    def __init__(self, bits, groupsize, infeatures, outfeatures, bias):
         super().__init__()
         if bits not in [1,2,3,4,8]:
             raise NotImplementedError("Only 1,2,3,4,8 bits are supported.")
@@ -168,9 +168,6 @@ class QuantLinear(nn.Module):
             self.register_buffer('wf', torch.tensor([[0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 0],
                                                      [0, 1, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31],
                                                      [0, 2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 0],], dtype=torch.int32).reshape(1,3,12), persistent=False)
-            
-        self.kernel_switch_threshold = kernel_switch_threshold
-        self.is_cuda = is_cuda
 
     def pack(self, linear, scales, zeros, g_idx = None):
         self.g_idx = g_idx.clone() if g_idx is not None else self.g_idx
