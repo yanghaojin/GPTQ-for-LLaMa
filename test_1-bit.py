@@ -54,9 +54,3 @@ with torch.no_grad():
     quantized_result = qlayer(vec)
     print('1bit Simu:', gt, 'Min - Max', gt.min(), gt.max())
     print('1bit Kern:', quantized_result, 'Min - Max', quantized_result.min(), quantized_result.max())
-
-# Kernel
-#[ 41.094,  74.062,  84.062,  ...,  8.5125e+01, 9.9625e+01,  1.0256e+02]
-
-# Simulation
-#[ -66.6875,  -33.7188,  -23.7188,  ...,  -22.6562,   -8.1484, -5.1992]
