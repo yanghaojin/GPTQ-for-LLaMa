@@ -6,7 +6,12 @@ import math
 def quantize(x, scale, zero, maxq):
     if maxq < 0:
         return (x > scale / 2).float() * scale + (x < zero / 2).float() * zero
-    q = torch.clamp(torch.round(x / scale) + zero, 0, maxq)
+
+    if maxq == 1:
+        # q = torch.where(x >= 0, torch.tensor(1).to(x.device), torch.tensor(0).to(x.device))
+        q = torch.sign(x)
+    else:
+        q = torch.clamp(torch.round(x / scale) + zero, 0, maxq)
     return scale * (q - zero)
 
 class Quantizer(nn.Module):
@@ -171,7 +176,10 @@ class QuantLinear(nn.Module):
 
     def pack(self, linear, scales, zeros, g_idx = None):
         self.g_idx = g_idx.clone() if g_idx is not None else self.g_idx
-        
+
+        # convert (-1,1) into (1,0)
+        w_quantized = torch.where(linear.weight.data >= 0, torch.tensor(1).to(linear.weight.data.device), torch.tensor(0).to(linear.weight.data.device))
+
         scales = scales.t().contiguous()
         zeros = zeros.t().contiguous()
         scale_zeros = zeros * scales
@@ -181,10 +189,11 @@ class QuantLinear(nn.Module):
             
         intweight = []
         for idx in range(self.infeatures):
-            intweight.append(torch.round((linear.weight.data[:,idx] + scale_zeros[self.g_idx[idx]]) / self.scales[self.g_idx[idx]]).to(torch.int)[:,None])
+            intweight.append(torch.round((w_quantized[:,idx] + scale_zeros[self.g_idx[idx]]) / self.scales[self.g_idx[idx]]).to(torch.int)[:,None])
         intweight = torch.cat(intweight,dim=1)
         intweight = intweight.t().contiguous()
-        intweight = intweight.numpy().astype(np.uint32)
+        # qweight uses numpy uint32 data tpye, copy to cpu if necessary
+        intweight = intweight.cpu().numpy().astype(np.uint32)
         qweight = np.zeros(
             (intweight.shape[0] // 32 * self.bits, intweight.shape[1]), dtype=np.uint32
         )
@@ -222,7 +231,7 @@ class QuantLinear(nn.Module):
         self.qweight = torch.from_numpy(qweight) 
         
         zeros -= 1;
-        zeros = zeros.numpy().astype(np.uint32)
+        zeros = zeros.cpu().numpy().astype(np.uint32)
         qzeros = np.zeros((zeros.shape[0], zeros.shape[1] // 32 * self.bits), dtype=np.uint32)
         i = 0
         col = 0
@@ -265,7 +274,7 @@ class QuantLinear(nn.Module):
             zeros = torch.bitwise_right_shift(torch.unsqueeze(self.qzeros, 2).expand(-1, -1, 32 // self.bits), self.wf.unsqueeze(0)).to(torch.int16 if self.bits == 8 else torch.int8)
             torch.bitwise_and(zeros, (2 ** self.bits) - 1, out=zeros)
 
-            zeros = zeros + 1
+            zeros = zeros - 1
             zeros = zeros.reshape(self.scales.shape)
 
             weight = torch.bitwise_right_shift(torch.unsqueeze(self.qweight, 1).expand(-1, 32 // self.bits, -1), self.wf.unsqueeze(-1)).to(torch.int16 if self.bits == 8 else torch.int8)
@@ -302,6 +311,11 @@ class QuantLinear(nn.Module):
                 g_idx_i = self.g_idx[i*num_dim:(i+1)*num_dim]
                 weights.append(scale_i[g_idx_i.long()] * (weight_i - zeros_i[g_idx_i.long()]))
             weights = torch.cat(weights,dim=1)
+
+        weights = torch.where(weights > 0, torch.tensor(1, dtype=torch.half).to(weights.device), torch.tensor(-1, dtype=torch.half).to(weights.device))
+
+        print("unpacked weights:")
+        print(weights.t())
 
         # 16-bit matmul
         out = torch.matmul(x.half(), weights)
