@@ -183,7 +183,7 @@ def llama_eval(model, testenc, dev):
                 )
                 W = subset[name].weight.data
                 quantizer.find_params(W, weight=True)
-                subset[name].weight.data = quantize(
+                subset[name].weight.data, zero_mask = quantize(
                     W, quantizer.scale, quantizer.zero, quantizer.maxq
                 ).to(next(iter(layer.parameters())).dtype)
 

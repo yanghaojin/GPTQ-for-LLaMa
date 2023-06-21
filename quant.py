@@ -7,12 +7,16 @@ def quantize(x, scale, zero, maxq):
     if maxq < 0:
         return (x > scale / 2).float() * scale + (x < zero / 2).float() * zero
 
+    zero_mask = None
+    # TODO: to be replaced by the corresponding 1-bit quantization method.
     if maxq == 1:
         # q = torch.where(x >= 0, torch.tensor(1).to(x.device), torch.tensor(0).to(x.device))
         q = torch.sign(x)
+        # mask tensor, where 0 -> True, otherwise False
+        zero_mask = torch.eq(q, 0)
     else:
         q = torch.clamp(torch.round(x / scale) + zero, 0, maxq)
-    return scale * (q - zero)
+    return scale * (q - zero), zero_mask
 
 class Quantizer(nn.Module):
 
@@ -266,7 +270,7 @@ class QuantLinear(nn.Module):
         qzeros = qzeros.astype(np.int32)
         self.qzeros = torch.from_numpy(qzeros) 
         
-    def forward(self, x):
+    def forward(self, x, zero_mask=None):
         out_shape = x.shape[:-1] + (self.outfeatures, )
         x = x.reshape(-1,x.shape[-1])     
 
@@ -312,7 +316,12 @@ class QuantLinear(nn.Module):
                 weights.append(scale_i[g_idx_i.long()] * (weight_i - zeros_i[g_idx_i.long()]))
             weights = torch.cat(weights,dim=1)
 
-        weights = torch.where(weights > 0, torch.tensor(1, dtype=torch.half).to(weights.device), torch.tensor(-1, dtype=torch.half).to(weights.device))
+        if zero_mask is None:
+            weights = torch.where(weights > 0, torch.tensor(1, dtype=torch.half).to(weights.device), torch.tensor(-1, dtype=torch.half).to(weights.device))
+        else:
+            weights = torch.where(zero_mask.t(), torch.tensor(0.0, dtype=torch.half, device=weights.device),
+                                  torch.where(weights > 0, torch.tensor(1.0, dtype=torch.half, device=weights.device),
+                                              torch.tensor(-1.0, dtype=torch.half, device=weights.device)))
 
         print("unpacked weights:")
         print(weights.t())

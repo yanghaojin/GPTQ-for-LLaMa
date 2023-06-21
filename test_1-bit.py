@@ -44,7 +44,7 @@ quantizer.find_params(layer.weight.data, weight=True)
 quantizer.scale.fill_(1)
 quantizer.zero.fill_(0)
 
-layer.weight.data = quantize(layer.weight.data, quantizer.scale, quantizer.zero, quantizer.maxq)
+layer.weight.data, zero_mask = quantize(layer.weight.data, quantizer.scale, quantizer.zero, quantizer.maxq)
 
 print("quantized weights:")
 print(layer.weight.data)
@@ -61,9 +61,9 @@ layer = layer.to(DEV).half()
 
 with torch.no_grad():
     gt = layer(vec)
-    quantized_result = qlayer(vec)
-    # print('1bit Simu:', gt, 'Min - Max', gt.min(), gt.max())
-    # print('1bit Kern:', quantized_result, 'Min - Max', quantized_result.min(), quantized_result.max())
+    quantized_result = qlayer(vec, zero_mask=zero_mask)
+    print('1bit Simu:', gt, 'Min - Max', gt.min(), gt.max())
+    print('1bit quant:', quantized_result, 'Min - Max', quantized_result.min(), quantized_result.max())
     # print(gt.shape)
     # print(quantized_result.shape)
     if torch.all(torch.isclose(gt, quantized_result, atol=1)):
