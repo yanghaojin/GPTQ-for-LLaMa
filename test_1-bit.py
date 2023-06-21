@@ -62,8 +62,8 @@ layer = layer.to(DEV).half()
 with torch.no_grad():
     gt = layer(vec)
     quantized_result = qlayer(vec, zero_mask=zero_mask)
-    print('1bit Simu:', gt, 'Min - Max', gt.min(), gt.max())
-    print('1bit quant:', quantized_result, 'Min - Max', quantized_result.min(), quantized_result.max())
+    # print('1bit Simu:', gt, 'Min - Max', gt.min(), gt.max())
+    # print('1bit quant:', quantized_result, 'Min - Max', quantized_result.min(), quantized_result.max())
     # print(gt.shape)
     # print(quantized_result.shape)
     if torch.all(torch.isclose(gt, quantized_result, atol=1)):

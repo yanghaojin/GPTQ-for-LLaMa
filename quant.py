@@ -302,6 +302,15 @@ class QuantLinear(nn.Module):
             weight = torch.cat([weight[:,0,:11], weight[:,1,1:12], weight[:,2,1:11]], dim=1)
 
         weight = weight.reshape(weight.shape[0] * weight.shape[1], weight.shape[2])
+
+        # converted to binary weights before the scaling and shifting.
+        if zero_mask is None:
+            weight = torch.where(weight > 0, torch.tensor(1, dtype=torch.half).to(weight.device), torch.tensor(-1, dtype=torch.half).to(weight.device))
+        else:
+            weight = torch.where(zero_mask.t(), torch.tensor(0.0, dtype=torch.half, device=weight.device),
+                                  torch.where(weight > 0, torch.tensor(1.0, dtype=torch.half, device=weight.device),
+                                              torch.tensor(-1.0, dtype=torch.half, device=weight.device)))
+
         num_itr = self.g_idx.shape[0]//x.shape[-1]
         if num_itr == 1:
             weights = (self.scales[self.g_idx.long()] * (weight - zeros[self.g_idx.long()]))
@@ -315,13 +324,6 @@ class QuantLinear(nn.Module):
                 g_idx_i = self.g_idx[i*num_dim:(i+1)*num_dim]
                 weights.append(scale_i[g_idx_i.long()] * (weight_i - zeros_i[g_idx_i.long()]))
             weights = torch.cat(weights,dim=1)
-
-        if zero_mask is None:
-            weights = torch.where(weights > 0, torch.tensor(1, dtype=torch.half).to(weights.device), torch.tensor(-1, dtype=torch.half).to(weights.device))
-        else:
-            weights = torch.where(zero_mask.t(), torch.tensor(0.0, dtype=torch.half, device=weights.device),
-                                  torch.where(weights > 0, torch.tensor(1.0, dtype=torch.half, device=weights.device),
-                                              torch.tensor(-1.0, dtype=torch.half, device=weights.device)))
 
         print("unpacked weights:")
         print(weights.t())
