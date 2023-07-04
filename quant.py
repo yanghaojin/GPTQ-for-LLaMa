@@ -278,7 +278,7 @@ class QuantLinear(nn.Module):
             zeros = torch.bitwise_right_shift(torch.unsqueeze(self.qzeros, 2).expand(-1, -1, 32 // self.bits), self.wf.unsqueeze(0)).to(torch.int16 if self.bits == 8 else torch.int8)
             torch.bitwise_and(zeros, (2 ** self.bits) - 1, out=zeros)
 
-            zeros = zeros - 1
+            zeros = zeros + 1
             zeros = zeros.reshape(self.scales.shape)
 
             weight = torch.bitwise_right_shift(torch.unsqueeze(self.qweight, 1).expand(-1, 32 // self.bits, -1), self.wf.unsqueeze(-1)).to(torch.int16 if self.bits == 8 else torch.int8)
